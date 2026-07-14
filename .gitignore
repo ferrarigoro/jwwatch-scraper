@@ -1,0 +1,13 @@
+# Dependencias de Node
+node_modules/
+
+# Archivos de entorno (por si luego usas variables secretas)
+.env
+
+# Directorio de salida temporal
+output/
+
+# Archivos de IDEs y SO
+.vscode/
+.idea/
+.DS_Store

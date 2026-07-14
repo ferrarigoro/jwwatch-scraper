@@ -1,0 +1,56 @@
+name: JW Scraper & Deploy to Pages
+
+on:
+  # Se ejecuta automáticamente cada miércoles y domingo a las 03:00 UTC
+  schedule:
+    - cron: '0 3 * * 0,3'
+  # Permite ejecutar el script manualmente desde la web de GitHub
+  workflow_dispatch:
+
+# Necesitamos dar permisos a la Action para que pueda subir los archivos a GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Permite que solo se ejecute un deploy a la vez
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  scrape-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # LTS
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar Scraper
+        # Esto generará los JSONs en la carpeta "output"
+        run: npm start
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Subir artefacto (Carpeta Output)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Le decimos a GitHub que la carpeta que servirá como web es "output"
+          path: './output'
+
+      - name: Desplegar a GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
