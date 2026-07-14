@@ -1,0 +1,51 @@
+{
+  "weekId": 20260713,
+  "normalQuiz": {
+    "quizId": "20260713-SUM-NRM",
+    "questions": [
+      {
+        "id": "20260713-SUM-NRM-01",
+        "source": "MIDWEEK",
+        "type": "MULTIPLE_CHOICE",
+        "difficulty": "EASY",
+        "question": "¿Qué libro de la Biblia se analizó en la sección Tesoros de esta semana?",
+        "options": [
+          "Éxodo",
+          "Génesis",
+          "Levítico"
+        ],
+        "explanation": "El programa indica claramente que la lectura semanal corresponde a los capítulos 22 al 24 de Éxodo. [Sección: Tesoros de la Biblia]"
+      },
+      {
+        "id": "20260713-SUM-NRM-02",
+        "source": "WATCHTOWER",
+        "type": "TRUE_FALSE",
+        "difficulty": "NORMAL",
+        "question": "El artículo afirma que el aguante se desarrolla únicamente a través del estudio personal.",
+        "options": [
+          "Falso",
+          "Verdadero"
+        ],
+        "explanation": "Además del estudio, la oración y la asociación son indispensables. [Párrafo 5]"
+      }
+    ]
+  },
+  "hardQuiz": {
+    "quizId": "20260713-SUM-HRD",
+    "questions": [
+      {
+        "id": "20260713-SUM-HRD-01",
+        "source": "MIDWEEK",
+        "type": "MULTIPLE_CHOICE",
+        "difficulty": "HARD",
+        "question": "Según el principio legal de restitución, ¿qué ocurre si lo robado se halla vivo?",
+        "options": [
+          "Se debe compensar el doble del valor",
+          "Se debe devolver exactamente lo robado",
+          "No hay restitución, solo castigo físico"
+        ],
+        "explanation": "Éxodo 22:4 especifica la doble compensación. [Sección: Busquemos perlas escondidas]"
+      }
+    ]
+  }
+}
