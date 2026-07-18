@@ -4,6 +4,7 @@ const { scrapeWatchtowerLink, scrapeWatchtowerData, scrapeMidweekLink, scrapeMid
 const { scrapeSongs } = require('./scrapers/songsScraper');
 const { processMediaInBlocks, processMeetingItemsMedia } = require('./utils/mediaProcessor');
 const { saveJson } = require('./utils/fileSystem');
+const { generateQuizzes } = require('./services/geminiService');
 
 function getWeekData(weekOffset = 0) {
     const today = new Date();
@@ -38,7 +39,7 @@ async function main() {
         // ==========================================
         // 1. LOTE DE TEXTOS DIARIOS (Próximos 15 días)
         // ==========================================
-        for (let i = 0; i < 15; i++) {
+        for (let i = -2; i < 15; i++) {
             const targetDate = new Date();
             targetDate.setDate(targetDate.getDate() + i);
             
@@ -56,9 +57,9 @@ async function main() {
         }
 
         // ==========================================
-        // 2. LOTE DE REUNIONES (Semana actual + 2 semanas a futuro)
+        // 2. LOTE DE REUNIONES (Semana actual + 4 semanas a futuro)
         // ==========================================
-        for (let w = 0; w < 3; w++) {
+        for (let w = 0; w < 5; w++) {
             const { year, weekNumber, weekId } = getWeekData(w);
             const meetingsUrl = `https://wol.jw.org/es/wol/meetings/r4/lp-s/${year}/${weekNumber}`;
             console.log(`\nProcesando Semana ${weekNumber} (${year})...`);
@@ -102,6 +103,45 @@ async function main() {
 
             if (finalWtModel) await saveJson(`watchtower_${weekId}.json`, finalWtModel);
             if (finalVymModel) await saveJson(`midweek_${weekId}.json`, finalVymModel);
+
+            // ==========================================
+            // GENERACIÓN DE QUIZZES CON IA
+            // ==========================================
+            try {
+                // 1. Extraemos todo el texto puro para enviárselo a la IA
+                let wtText = "";
+                if (finalWtModel && finalWtModel.articleContent) {
+                    let pCount = 1;
+                    wtText = finalWtModel.articleContent
+                        .filter(b => b.type === 'subtitle' || b.type === 'paragraph' || !b.type)
+                        .map(b => {
+                            if (b.type === 'subtitle') return `\nSUBTÍTULO: ${b.content}\n`;
+                            // Enumeramos los párrafos artificialmente para que la IA los lea
+                            return `[Párrafo ${pCount++}]: ${b.content}`;
+                        })
+                        .join('\n');
+                }
+
+                let mwText = "";
+                if (finalVymModel) {
+                    const allMwItems = [
+                        ...(finalVymModel.treasuresItems || []),
+                        ...(finalVymModel.ministryItems || []),
+                        ...(finalVymModel.lifeItems || [])
+                    ];
+                    mwText = allMwItems.map(i => `[Sección: ${i.title}]: ${i.extra}`).join('\n');
+                }
+
+                // 2. Solo llamamos a la IA si tenemos texto
+                if (wtText || mwText) {
+                    const aiQuizzes = await generateQuizzes(weekId, mwText, wtText);
+                    if (aiQuizzes) {
+                        await saveJson(`quiz_${weekId}.json`, aiQuizzes);
+                    }
+                }
+            } catch (e) {
+                console.error(`Error procesando Quizzes de la semana ${weekId}:`, e);
+            }
         }
 
     } catch (error) {

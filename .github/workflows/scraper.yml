@@ -1,10 +1,10 @@
 name: JW Scraper & Deploy to Pages
 
 on:
-  # Se ejecuta automáticamente cada miércoles y domingo a las 03:00 UTC
+  # Se ejecuta automáticamente TODOS LOS DÍAS a las 03:00 UTC
   schedule:
-    - cron: '0 3 * * 0,3'
-  # Permite ejecutar el script manualmente desde la web de GitHub
+    - cron: '0 3 * * *'
+  # Permite ejecutar el script manualmente
   workflow_dispatch:
 
 # Necesitamos dar permisos a la Action para que pueda subir los archivos a GitHub Pages
