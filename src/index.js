@@ -104,34 +104,18 @@ async function main() {
 
             if (finalWtModel) await saveJson(`watchtower_${weekId}.json`, finalWtModel);
             if (finalVymModel) await saveJson(`midweek_${weekId}.json`, finalVymModel);
+        }
 
-            // ==========================================
-            // GENERACIÓN DE QUIZZES (Desde Banco CSV Privado)
-            // ==========================================
-            try {
-                const quizFileName = `quiz_${weekId}.json`;
-                const liveUrl = `https://ferrarigoro.github.io/jwwatch-scraper/${quizFileName}`;
-                let finalQuizzes = null;
-
-                // 1. Intentamos recuperar el quiz de nuestra propia web
-                try {
-                    const cacheResponse = await axios.get(liveUrl);
-                    finalQuizzes = cacheResponse.data;
-                    console.log(`✅ Caché HIT: Quiz de la semana ${weekId} recuperado de GitHub Pages.`);
-                } catch (cacheError) {
-                    // 2. Si no existe en la web, lo ensamblamos desde el CSV privado
-                    console.log(`⚠️ Caché MISS: Ensamblando nuevo Quiz ${weekId} desde el archivo CSV...`);
-                    finalQuizzes = await generateQuizPayload(weekId);
-                }
-
-                // 3. Guardamos el archivo localmente para que se publique en Pages
-                if (finalQuizzes) {
-                    await saveJson(quizFileName, finalQuizzes);
-                }
-
-            } catch (e) {
-                console.error(`❌ Error procesando Quizzes de la semana ${weekId}:`, e);
-            }
+        // ==========================================
+        // EXPORTACIÓN DEL BANCO DE PREGUNTAS
+        // ==========================================
+        try {
+            const { exportQuestionBank } = require('./services/bankExporter');
+            // Solo necesitamos exportar el banco una vez por ejecución, no dentro del bucle de 5 semanas.
+            // Asegúrate de colocar esto FUERA del bucle `for (let w = 0; w < 5; w++)` o al final del script.
+            await exportQuestionBank();
+        } catch (e) {
+            console.error(`❌ Error exportando el banco de preguntas:`, e);
         }
 
     } catch (error) {
