@@ -1,15 +1,16 @@
+const axios = require('axios');
 const { launchBrowser } = require('./config/puppeteer.config');
 const { scrapeDailyText } = require('./scrapers/dailyTextScraper');
 const { scrapeWatchtowerLink, scrapeWatchtowerData, scrapeMidweekLink, scrapeMidweekData } = require('./scrapers/meetingsScraper');
 const { scrapeSongs } = require('./scrapers/songsScraper');
 const { processMediaInBlocks, processMeetingItemsMedia } = require('./utils/mediaProcessor');
 const { saveJson } = require('./utils/fileSystem');
-const { generateQuizzes } = require('./services/geminiService');
+const { generateQuizPayload } = require('./services/quizGenerator');
 
 function getWeekData(weekOffset = 0) {
     const today = new Date();
     const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1); 
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(today.setDate(diff + (weekOffset * 7))); // Sumamos las semanas
 
     const year = monday.getFullYear();
@@ -27,12 +28,12 @@ function getWeekData(weekOffset = 0) {
 async function main() {
     console.log("Iniciando motor de extracción por lotes (Batch)...");
     const browser = await launchBrowser();
-    
+
     try {
         const page = await browser.newPage();
         await page.setRequestInterception(true);
         page.on('request', (req) => {
-            if(['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) req.abort();
+            if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) req.abort();
             else req.continue();
         });
 
@@ -42,17 +43,17 @@ async function main() {
         for (let i = -2; i < 15; i++) {
             const targetDate = new Date();
             targetDate.setDate(targetDate.getDate() + i);
-            
+
             const year = targetDate.getFullYear();
             const month = targetDate.getMonth() + 1;
             const day = targetDate.getDate();
             const dUrl = `https://wol.jw.org/es/wol/h/r4/lp-s/${year}/${month}/${day}`;
-            
+
             const dailyTextData = await scrapeDailyText(page, dUrl);
             const dateId = parseInt(`${year}${month.toString().padStart(2, '0')}${day.toString().padStart(2, '0')}`);
-            
-            await saveJson(`daily_text_${dateId}.json`, { 
-                dateId, dateHeading: dailyTextData.scrapedDate, scriptureDetails: dailyTextData.scripture, body: dailyTextData.body, additionalInfo: dailyTextData.additional || null 
+
+            await saveJson(`daily_text_${dateId}.json`, {
+                dateId, dateHeading: dailyTextData.scrapedDate, scriptureDetails: dailyTextData.scripture, body: dailyTextData.body, additionalInfo: dailyTextData.additional || null
             });
         }
 
@@ -105,42 +106,31 @@ async function main() {
             if (finalVymModel) await saveJson(`midweek_${weekId}.json`, finalVymModel);
 
             // ==========================================
-            // GENERACIÓN DE QUIZZES CON IA
+            // GENERACIÓN DE QUIZZES (Desde Banco CSV Privado)
             // ==========================================
             try {
-                // 1. Extraemos todo el texto puro para enviárselo a la IA
-                let wtText = "";
-                if (finalWtModel && finalWtModel.articleContent) {
-                    let pCount = 1;
-                    wtText = finalWtModel.articleContent
-                        .filter(b => b.type === 'subtitle' || b.type === 'paragraph' || !b.type)
-                        .map(b => {
-                            if (b.type === 'subtitle') return `\nSUBTÍTULO: ${b.content}\n`;
-                            // Enumeramos los párrafos artificialmente para que la IA los lea
-                            return `[Párrafo ${pCount++}]: ${b.content}`;
-                        })
-                        .join('\n');
+                const quizFileName = `quiz_${weekId}.json`;
+                const liveUrl = `https://ferrarigoro.github.io/jwwatch-scraper/${quizFileName}`;
+                let finalQuizzes = null;
+
+                // 1. Intentamos recuperar el quiz de nuestra propia web
+                try {
+                    const cacheResponse = await axios.get(liveUrl);
+                    finalQuizzes = cacheResponse.data;
+                    console.log(`✅ Caché HIT: Quiz de la semana ${weekId} recuperado de GitHub Pages.`);
+                } catch (cacheError) {
+                    // 2. Si no existe en la web, lo ensamblamos desde el CSV privado
+                    console.log(`⚠️ Caché MISS: Ensamblando nuevo Quiz ${weekId} desde el archivo CSV...`);
+                    finalQuizzes = await generateQuizPayload(weekId);
                 }
 
-                let mwText = "";
-                if (finalVymModel) {
-                    const allMwItems = [
-                        ...(finalVymModel.treasuresItems || []),
-                        ...(finalVymModel.ministryItems || []),
-                        ...(finalVymModel.lifeItems || [])
-                    ];
-                    mwText = allMwItems.map(i => `[Sección: ${i.title}]: ${i.extra}`).join('\n');
+                // 3. Guardamos el archivo localmente para que se publique en Pages
+                if (finalQuizzes) {
+                    await saveJson(quizFileName, finalQuizzes);
                 }
 
-                // 2. Solo llamamos a la IA si tenemos texto
-                if (wtText || mwText) {
-                    const aiQuizzes = await generateQuizzes(weekId, mwText, wtText);
-                    if (aiQuizzes) {
-                        await saveJson(`quiz_${weekId}.json`, aiQuizzes);
-                    }
-                }
             } catch (e) {
-                console.error(`Error procesando Quizzes de la semana ${weekId}:`, e);
+                console.error(`❌ Error procesando Quizzes de la semana ${weekId}:`, e);
             }
         }
 

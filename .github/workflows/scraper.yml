@@ -29,6 +29,11 @@ jobs:
       - name: Checkout del código
         uses: actions/checkout@v4
 
+      # NUEVO PASO: Clonar el CSV privado de forma invisible
+      - name: Descargar Banco de Preguntas Privado
+        run: |
+          git clone https://${{ secrets.DATA_REPO_TOKEN }}@github.com/ferrarigoro/jwwatch-database.git ./private_data
+
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
