@@ -9,7 +9,7 @@ const { exportQuestionBank } = require('./services/bankExporter');
 function getWeekData(weekOffset = 0) {
   const today = new Date();
   const day = today.getDay();
-  const diff = today.getDate() - day + (day === 0 ? -6 : 1); 
+  const diff = today.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(today.setDate(diff + (weekOffset * 7)));
 
   const year = monday.getFullYear();
@@ -27,14 +27,18 @@ function getWeekData(weekOffset = 0) {
 async function main() {
   console.log("Iniciando motor de extracción por lotes (Batch)...");
   const browser = await launchBrowser();
-  
+
   try {
     const page = await browser.newPage();
     await page.setRequestInterception(true);
     page.on('request', (req) => {
-      if(['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) req.abort();
+      if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) req.abort();
       else req.continue();
     });
+
+    // Añade este mapa de meses al principio de tu función main()
+    const monthMap = { "enero": "01", "febrero": "02", "marzo": "03", "abril": "04", "mayo": "05", "junio": "06", "julio": "07", "agosto": "08", "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12" };
+    let extractedMemorialDateId = null;
 
     // ==========================================
     // 1. LOTE DE TEXTOS DIARIOS (Próximos 15 días)
@@ -42,17 +46,35 @@ async function main() {
     for (let i = -2; i < 15; i++) {
       const targetDate = new Date();
       targetDate.setDate(targetDate.getDate() + i);
-      
+
       const year = targetDate.getFullYear();
       const month = targetDate.getMonth() + 1;
       const day = targetDate.getDate();
       const dUrl = `https://wol.jw.org/es/wol/h/r4/lp-s/${year}/${month}/${day}`;
-      
+
       const dailyTextData = await scrapeDailyText(page, dUrl);
       const dateId = parseInt(`${year}${month.toString().padStart(2, '0')}${day.toString().padStart(2, '0')}`);
-      
-      await saveJson(`daily_text_${dateId}.json`, { 
-        dateId, dateHeading: dailyTextData.scrapedDate, scriptureDetails: dailyTextData.scripture, body: dailyTextData.body, additionalInfo: dailyTextData.additional || null 
+
+      // --- NUEVO: Intercepción de la fecha de la Conmemoración ---
+      if (!extractedMemorialDateId) {
+        const fullText = `${dailyTextData.scrapedDate} ${dailyTextData.scripture} ${dailyTextData.body} ${dailyTextData.additional || ''}`;
+        const memorialMatch = fullText.match(/FECHA DE LA CONMEMORACIÓN.*?(\d{1,2})\s+de\s+([a-z]+)/i);
+
+        if (memorialMatch) {
+          const mDay = memorialMatch[1].padStart(2, '0');
+          const mMonthStr = memorialMatch[2].toLowerCase();
+          const mMonth = monthMap[mMonthStr];
+
+          if (mMonth) {
+            extractedMemorialDateId = parseInt(`${year}${mMonth}${mDay}`);
+            console.log(`\n¡Fecha de Conmemoración detectada en el texto!: ${extractedMemorialDateId}`);
+          }
+        }
+      }
+      // -----------------------------------------------------------
+
+      await saveJson(`daily_text_${dateId}.json`, {
+        dateId, dateHeading: dailyTextData.scrapedDate, scriptureDetails: dailyTextData.scripture, body: dailyTextData.body, additionalInfo: dailyTextData.additional || null
       });
     }
 
@@ -106,9 +128,13 @@ async function main() {
     }
 
     // ==========================================
-    // 3. EXPORTACIÓN DEL BANCO DE PREGUNTAS (NUEVO)
+    // 3. EXPORTACIÓN
     // ==========================================
     try {
+      await saveJson('system_metadata.json', {
+        memorialDateId: extractedMemorialDateId
+      });
+
       console.log("\nProcesando exportación del banco de preguntas...");
       await exportQuestionBank();
     } catch (e) {
